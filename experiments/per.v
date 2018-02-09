@@ -1,7 +1,7 @@
 Declare ML Module "ltac_plugin".
 Local Set Default Proof Mode "Classic".
 
-Set Default Goal Selector "all". (* intentionally annoying *)
+(* Set Default Goal Selector "all". (* intentionally annoying *) *)
 
 Set Keyed Unification.
 
@@ -100,9 +100,9 @@ Module bool.
         R (@f1 T1 x z) (@f2 T2 y v).
 
   Definition true : bool := fun (T : Type) (x y : T) => x.
-  Lemma ok_true : ok true. Proof. cbv; trivial. Qed.
+  Lemma ok_true : ok true. Proof. cbv; intros; assumption. Qed.
   Definition false : bool := fun (T : Type) (x y : T) => y.
-  Lemma ok_false : ok false. Proof. cbv; trivial. Qed.
+  Lemma ok_false : ok false. Proof. cbv; intros; assumption. Qed.
 
   Lemma bool_rect
              (P : bool -> prop) (ok_P : ok P)

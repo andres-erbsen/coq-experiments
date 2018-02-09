@@ -1,7 +1,7 @@
 Declare ML Module "ltac_plugin".
 Local Set Default Proof Mode "Classic".
 
-Set Default Goal Selector "all". (* intentionally annoying *)
+(* Set Default Goal Selector "all". (* intentionally annoying *) *)
 
 Set Keyed Unification.
 
