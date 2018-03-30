@@ -48,6 +48,9 @@ Module predicate.
       (forall a b pf, simple_div a b = safe_div a b pf)
     As simple_div_correct.
     Proof. intros. cbv [safe_div]. subst simple_div. reflexivity. Qed.
+
+    Local Definition quotient a b :=
+      bind (any _) (fun h => exactly (safe_div a b h)).
     
     Local Opaque simple_div safe_div.
     
@@ -67,8 +70,7 @@ Module predicate.
       evar (predicate_safe : nat*nat -> nat*nat -> predicate nat).
       assert (predicate_safe_correct : forall ab cd pf, predicate_safe ab cd (safe_mediant ab cd pf)).
       { let ev := eval unfold predicate_safe in predicate_safe in
-            unify ev
-              (fun ab cd => bind (any _) (fun H => exactly (safe_mediant ab cd H))).
+            unify ev (fun ab cd => quotient (fst ab + fst cd) (snd ab + snd cd)).
         cbv; typeclasses eauto with core. }
 
       (* 2) Prove `Functional X` # purely syntax directed *)
@@ -86,24 +88,17 @@ Module predicate.
         evar (func_simple : nat*nat -> nat*nat -> nat);
         let ev := eval unfold predicate_simple in predicate_simple in
             unify ev (fun ab cd => exactly (func_simple ab cd)).
-        cbv [exactly func_simple].
-
-        cbv [predicate.eq pointwise_relation].
+        cbv [func_simple].
 
         cbv [predicate_safe].
 
+        cbv [predicate.eq pointwise_relation].
+
         cbv [any exactly bind].
 
-        cbv [safe_mediant].
-
         let ev := eval unfold func_simple in func_simple in
-            unify ev
-              (fun ab cd =>
-                   match fst ab, snd ab with a, b =>
-                   match fst cd, snd cd with c, d =>
-                   simple_div (a+c) (b+d)
-                   end end).
-        cbv [predicate_simple  any exactly bind].
+            unify ev (fun ab cd => simple_div (fst ab + fst cd) (snd ab + snd cd)).
+        cbv [predicate_simple  quotient  any exactly bind].
         repeat (intros||subst||destruct_one_pair||destruct_one_ex||split).
         exists H.
         repeat (intros||subst||destruct_one_pair||destruct_one_ex||split).
