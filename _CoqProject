@@ -1,3 +1,4 @@
 -Q experiments experiments
 -arg -noinit
+experiments/HidingDependentTypes.v
 experiments/church.v
