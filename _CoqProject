@@ -2,3 +2,4 @@
 -arg -noinit
 experiments/HidingDependentTypes.v
 experiments/church.v
+experiments/ltac1core.v
