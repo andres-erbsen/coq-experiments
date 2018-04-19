@@ -94,8 +94,6 @@ Module predicate.
 
         cbv [predicate.eq pointwise_relation].
 
-        cbv [any exactly bind].
-
         let ev := eval unfold func_simple in func_simple in
             unify ev (fun ab cd => simple_div (fst ab + fst cd) (snd ab + snd cd)).
         cbv [predicate_simple  quotient  any exactly bind].
