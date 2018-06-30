@@ -88,8 +88,10 @@ Ltac _syntactic_eapply_openconstr pf :=
   first
     [ syntactic_unify P G; change P; exact pf
     | lazymatch P with forall __, ?C => _syntactic_eapply_openconstr open_constr:(pf _) end ].
-Ltac syntactic_eapply pf :=
+Ltac _syntactic_eapply pf :=
   unshelve _syntactic_eapply_openconstr pf; shelve_unifiable.
+Tactic Notation "syntactic_eapply" open_constr(pf) :=
+  _syntactic_eapply pf.
 
 Ltac _syntactic_apply_openconstr pf :=
   let P := typeof pf in
@@ -107,29 +109,60 @@ Ltac _syntactic_apply_openconstr pf :=
            end
          end
   end.
-Ltac syntactic_apply pf :=
-  unshelve (idtac; let pf := _syntactic_apply_openconstr pf in exact pf); shelve_unifiable.
+Ltac _syntactic_apply pf :=
+  unshelve (idtac; let pf := _syntactic_apply_openconstr pf in exact pf).
+Tactic Notation "syntactic_apply" open_constr(pf) :=
+  _syntactic_apply pf.
+
+Ltac _evarconv_eapply_rec pf :=
+  match constr:(Set) with
+  | _ => let pf := open_constr:(pf _) in _evarconv_eapply_rec pf
+  | _ => exact pf
+  end.
+Ltac _evarconv_eapply pf := unshelve (_evarconv_eapply_rec pf); shelve_unifiable.
+Tactic Notation "evarconv_eapply" open_constr(pf) :=
+  _evarconv_eapply pf.
+
+Ltac _evarconv_apply_rec pf :=
+  match constr:(Set) with
+  | _ =>
+    let e := open_constr:(_) in
+    let pf := _evarconv_apply_rec open_constr:(pf e) in
+    let __ := constr:(ltac:(assert_fails (is_evar e); exact Set)) in
+    constr:(pf)
+  | _ => let G := getgoal Set in
+         let P := typeof pf in
+         let __ := constr:(ltac:(evarconv G P; exact Set)) in
+         constr:(pf)
+  end.
+Ltac _evarconv_apply pf := unshelve (idtac; let pf := _evarconv_apply_rec pf in exact pf).
+Tactic Notation "evarconv_apply" open_constr(pf) :=
+  _evarconv_apply pf.
 
 (** Deprecations of commonly used very broken tactics *)
 
-Tactic Notation "simple" "apply" open_constr(x) := fail "[simple apply] uses more broken unification, instead use: syntactic_apply" x.
-Tactic Notation "simple" "eapply" open_constr(x) := fail "[simple apply] uses more broken unification, instead use: syntactic_eapply" x.
-Tactic Notation "apply" open_constr(x) := fail "[apply] messes with projections and uses more broken unification, instead use: syntactic_apply" x.
-Tactic Notation "eapply" open_constr(x) := fail "[eapply] messes with projections uses more broken unification, instead use: syntactic_eapply" x.
+Tactic Notation "simple" "apply" open_constr(x) := fail "[simple apply] uses more broken unification, instead use: syntactic_apply" x ". Alternatively, instead use: evarconv_apply" x.
+Tactic Notation "simple" "eapply" open_constr(x) := fail "[simple apply] uses more broken unification, instead use: syntactic_eapply" x ". Alternatively, instead use: evarconv_eapply" x.
+Tactic Notation "apply" open_constr(x) := fail "[apply] messes with projections and uses more broken unification, instead use: syntactic_eapply" x ". Alternatively, instead use: evarconv_apply" x.
+Tactic Notation "eapply" open_constr(x) := fail "[eapply] messes with projections uses more broken unification, instead use: syntactic_eapply" x ". Alternatively, instead use: evarconv_eapply" x.
 
 Set SimplIsCbn.
 
 Tactic Notation "intuition" := fail "[intuition] runs [auto with *], instead use: intuition idtac".
 Tactic Notation "dintuition" := fail "[dintuition] runs [auto with *], instead use: intuition idtac".
 
+Tactic Notation "firstorder" := fail "[firstorder] runs [auto with *], instead use firstorder with core".
+
+Tactic Notation "reflexivity" := fail "[reflexivity] uses more broken unification, instead use: exact Logic.eq_refl. When typeclass resolution is desired, instead use: exact (Coq.Classes.RelationClasses.reflexivity _)".
+
 Tactic Notation "auto" := fail "[auto] is superseded by [typeclasses eauto with core]".
 Tactic Notation "auto" "using" constr_list(lems) := fail "[auto using] is superseded by [typeclasses eauto with core], use instead: pose proof" lems "; typeclasses eauto".
 Tactic Notation "auto" "with" ref(db) := fail "[auto with] is superseded by [typeclasses eauto with core], use instead: typeclasses eauto with" db.
 Tactic Notation "eauto" := fail "[eauto] is superseded by [typeclasses eauto with core]".
 Tactic Notation "eauto" "using" constr_list(lems) := fail "[eauto using] is superseded by [typeclasses eauto with core], use instead: pose proof" lems "; typeclasses eauto".
-Tactic Notation "eauto" "with" ref(db) := fail "[eauto with] is superseded by [typeclasses eauto with core], use instead: typeclasses eauto with" db.
+Tactic Notation "eauto" "with" ref(db) := fail "[eauto with] is superseded by [typeclasses eauto with], use instead: typeclasses eauto with" db.
 
-Tactic Notation "unfold" constr_list(x) := fail "[unfold]: [cbn], [cbv], and [delta1] are recommended instead: cbv [" x "].".
+Tactic Notation "unfold" constr_list(x) := fail "[unfold]: [cbn], [cbv], and [delta1] are recommended instead: cbv delta [" x "].".
 
 Module _test.
   Section WithAnd.
@@ -250,6 +283,48 @@ Module _test.
       intros.
       syntactic_apply H.
       syntactic_apply HH.
+    Qed.
+
+    Goal forall R (refl: forall x, R x x), R True True.
+      intros.
+      assert_succeeds (exact (refl _)).
+    Qed.
+
+    Goal forall R (refl: forall x, R x x), R True True.
+      intros.
+      syntactic_apply refl.
+    Qed.
+
+    Goal forall R (refl: forall x, R x x), R True True.
+      intros.
+      syntactic_apply (refl _).
+    Qed.
+
+    Goal forall R (refl: forall x, R x x), R True True.
+      intros.
+      syntactic_eapply (refl _).
+    Qed.
+
+    Goal forall R (refl: forall x, R x x), R True True.
+      intros.
+      evarconv_eapply refl.
+    Qed.
+
+    Goal forall R (refl: forall x, R x x), R True True.
+      intros.
+      evarconv_apply (refl _).
+    Qed.
+
+    Goal forall R (refl: forall x, R x x), R True True.
+      intros.
+      evarconv_apply refl.
+    Qed.
+
+    Goal forall P eq (H: forall (x:True) (Hx:eq x x), P) (HH:eq I I), P.
+      intros.
+      assert_fails (evarconv_apply H).
+      evarconv_eapply H.
+      evarconv_eapply HH.
     Qed.
   End WithAnd.
 End _test.
