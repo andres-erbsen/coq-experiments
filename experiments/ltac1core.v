@@ -11,13 +11,36 @@ Tactic Notation "assert_fails" tactic3(tac) :=
   _assert_fails tac.
 
 (** [texact t] first evaluates tactic [t] to a term and solves the current goal using that term. *)
-Tactic Notation "texact" tactic(x) := exact x.
+Tactic Notation "texact" tactic3(x) := exact x.
 
 Ltac typeof x :=
   match type of x with
   | ?T => T
   end.
-Global Notation typeof x := (ltac:(texact (typeof x))) (only parsing).
+Global Notation "'typeof!' x" := (ltac:(texact (typeof x))) (only parsing, at level 10).
+
+Global Notation "'subst!' y 'for' x 'in' f" := (match y with x => f end) (at level 10).
+
+Ltac beta1 x :=
+  lazymatch x with
+  | (fun a => ?f) ?b => constr:(subst! b for a in f)
+  end.
+Global Notation "'beta1!' x" := (ltac:(texact (beta1 x))) (only parsing, at level 10).
+
+Ltac zeta1 x :=
+  lazymatch x with
+  | let a := ?b in ?f => constr:(subst! b for a in f)
+  end.
+Global Notation "'zeta1!' x" := (ltac:(texact (zeta1 x))) (only parsing, at level 10).
+
+Ltac delta1 x :=
+  let y := eval unfold x in x in y.
+Global Notation "'delta1!' x" := (ltac:(texact (delta1 x))) (only parsing, at level 10).
+
+(* TODO: one-step match? *)
+(* TODO: one-step fixpoint? *)
+(* TODO: one-step delta-fixpoint-undelta?? *)
+(* unlikely to be supported: one-step reduction of cofixpoints *)
 
 Ltac getgoal _ := match goal with |- ?G => G end.
 
@@ -25,9 +48,9 @@ Ltac _syntactic_apply_openconstr_of_type pf P :=
   let G := getgoal Set in
   first
     [ constr_eq P G; exact pf
-    | lazymatch P with forall _, ?C => _syntactic_apply_openconstr_of_type open_constr:(pf _) C end ].
+    | lazymatch P with forall __, ?C => _syntactic_apply_openconstr_of_type open_constr:(pf _) C end ].
 Ltac syntactic_apply pf :=
-  unshelve _syntactic_apply_openconstr_of_type pf constr:(typeof pf).
+  unshelve _syntactic_apply_openconstr_of_type pf constr:(typeof! pf).
 
 Ltac _evarconv x y :=
   let __ := open_constr:(fun eq (eq_refl : forall a, eq a a) => (eq_refl _ : eq x y)) in idtac.
@@ -35,7 +58,7 @@ Tactic Notation "evarconv" open_constr(x) open_constr(y) :=
   _evarconv x y.
 
 (* kitchen sink of all unification methods *)
-Ltac _unify x y := evarconv x y || evarconv y x || unify x y || unify x y.
+Ltac _unify x y := evarconv x y || evarconv y x || unify x y || unify y x.
 Tactic Notation "unify" open_constr(x) open_constr(y) := unify x y.
 (* Tactic Notation "unify" open_constr(x) open_constr(y) := fail "[unify] is deprecated in favor of evarconv, us instead: evarconv" x y. *)
 
@@ -61,8 +84,8 @@ Tactic Notation "syntactic_unify" open_constr(x) open_constr(y) :=
 
 Ltac _syntactic_unify_type_first x y :=
   first
-    [ constr_eq constr:(typeof x) constr:(typeof y)
-    | _syntactic_unify_type_first constr:(typeof x) constr:(typeof y) ];
+    [ constr_eq constr:(typeof! x) constr:(typeof! y)
+    | _syntactic_unify_type_first constr:(typeof! x) constr:(typeof! y) ];
   _syntactic_unify x y.
 Tactic Notation "syntactic_unify_type_first" open_constr(x) open_constr(y) :=
   _syntactic_unify_type_first x y.
@@ -71,30 +94,9 @@ Ltac _syntactic_eapply_openconstr_of_type pf P :=
   let G := getgoal Set in
   first
     [ syntactic_unify P G; change P; exact pf
-    | lazymatch P with forall _, ?C => _syntactic_eapply_openconstr_of_type open_constr:(pf _) C end ]. (* TODO: test usage that creates evars *)
+    | lazymatch P with forall __, ?C => _syntactic_eapply_openconstr_of_type open_constr:(pf _) C end ]. (* TODO: test usage that creates evars *)
 Ltac syntactic_eapply pf :=
-  unshelve _syntactic_eapply_openconstr_of_type pf constr:(typeof pf).
-
-Ltac delta1 x :=
-  let y := eval unfold x in x in y.
-Global Notation delta1 x := (ltac:(texact (delta1 x))) (only parsing).
-
-Ltac beta1 x :=
-  lazymatch x with
-  | (fun a => ?f) ?b => constr:(match b with a => f end) (* reduced instantly *)
-  end.
-Global Notation beta1 x := (ltac:(texact (beta1 x))) (only parsing).
-
-Ltac zeta1 x :=
-  lazymatch x with
-  | let a := ?b in ?f => constr:(match b with a => f end) (* reduced instantly *)
-  end.
-Global Notation zeta1 x := (ltac:(texact (zeta1 x))) (only parsing).
-
-(* TODO: one-step match? *)
-(* TODO: one-step fixpoint? *)
-(* TODO: one-step delta-fixpoint-undelta?? *)
-(* unlikely to be supported: one-step reduction of cofixpoints *)
+  unshelve _syntactic_eapply_openconstr_of_type pf constr:(typeof! pf).
 
 (** Deprecations of commonly used very broken tactics *)
 
@@ -219,8 +221,43 @@ Module _test.
       exact I.
     Qed.
 
+      (*
+Ltac _syntactic_eapply_openconstr_of_type pf P :=
+  let G := getgoal Set in
+  first
+    [ syntactic_unify P G; change P; exact pf
+    | lazymatch P with forall __, ?C => _syntactic_eapply_openconstr_of_type open_constr:(pf _) C end ]. (* TODO: test usage that creates evars *)
+Ltac syntactic_eapply pf :=
+  unshelve _syntactic_eapply_openconstr_of_type pf constr:(typeof! pf).
+*)
+
     Goal forall P eq (H: forall (x:True) (Hx:eq x x), P) (HH:eq I I), P.
+
       intros.
+      assert_succeeds (refine (H _ _)).
+
+      let pf := H in
+      let P := constr:(typeof! pf) in
+      let G := getgoal Set in
+      idtac pf; idtac P;
+        lazymatch P with
+          forall __, ?C =>
+          let pf := open_constr:(pf _) in
+          let P := C in
+          idtac; idtac pf; idtac P;
+
+        lazymatch P with (* cannot match on const_under_binders *)
+          forall __, ?C =>
+          let pf := open_constr:(pf _) in
+          let P := C in
+          idtac; idtac pf; idtac C
+        end
+        end.
+
+            
+            
+          _syntactic_eapply_openconstr_of_type open_constr:(pf _) C end.
+
       syntactic_eapply H.
       syntactic_eapply HH.
     Qed.
