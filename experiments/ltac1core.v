@@ -11,7 +11,7 @@ Tactic Notation "assert_fails" tactic3(tac) :=
   _assert_fails tac.
 
 (** [texact t] first evaluates tactic [t] to a term and solves the current goal using that term. *)
-Tactic Notation "texact" tactic3(x) := exact x.
+Tactic Notation "texact" tactic(x) := exact x.
 
 Ltac typeof x :=
   match type of x with
@@ -43,14 +43,6 @@ Global Notation "'delta1!' x" := (ltac:(texact (delta1 x))) (only parsing, at le
 (* unlikely to be supported: one-step reduction of cofixpoints *)
 
 Ltac getgoal _ := match goal with |- ?G => G end.
-
-Ltac _syntactic_apply_openconstr_of_type pf P :=
-  let G := getgoal Set in
-  first
-    [ constr_eq P G; exact pf
-    | lazymatch P with forall __, ?C => _syntactic_apply_openconstr_of_type open_constr:(pf _) C end ].
-Ltac syntactic_apply pf :=
-  unshelve _syntactic_apply_openconstr_of_type pf constr:(typeof! pf).
 
 Ltac _evarconv x y :=
   let __ := open_constr:(fun eq (eq_refl : forall a, eq a a) => (eq_refl _ : eq x y)) in idtac.
@@ -90,13 +82,33 @@ Ltac _syntactic_unify_type_first x y :=
 Tactic Notation "syntactic_unify_type_first" open_constr(x) open_constr(y) :=
   _syntactic_unify_type_first x y.
 
-Ltac _syntactic_eapply_openconstr_of_type pf P :=
+Ltac _syntactic_eapply_openconstr pf :=
+  let P := typeof pf in
   let G := getgoal Set in
   first
     [ syntactic_unify P G; change P; exact pf
-    | lazymatch P with forall __, ?C => _syntactic_eapply_openconstr_of_type open_constr:(pf _) C end ]. (* TODO: test usage that creates evars *)
+    | lazymatch P with forall __, ?C => _syntactic_eapply_openconstr open_constr:(pf _) end ].
 Ltac syntactic_eapply pf :=
-  unshelve _syntactic_eapply_openconstr_of_type pf constr:(typeof! pf).
+  unshelve _syntactic_eapply_openconstr pf; shelve_unifiable.
+
+Ltac _syntactic_apply_openconstr pf :=
+  let P := typeof pf in
+  let G := getgoal Set in
+  match constr:(Set) with
+  | _ => let __ := constr:(ltac:(_syntactic_unify P G; exact Set)) in
+         open_constr:(pf)
+  | _ => lazymatch P with
+           forall __:?T, ?C =>
+           lazymatch open_constr:(_:T) with
+             ?e =>
+             let pf := _syntactic_apply_openconstr open_constr:(pf e) in
+             let __ := constr:(ltac:(assert_fails(has_evar T); exact Set)) in
+             open_constr:(pf)
+           end
+         end
+  end.
+Ltac syntactic_apply pf :=
+  unshelve (idtac; let pf := _syntactic_apply_openconstr pf in exact pf); shelve_unifiable.
 
 (** Deprecations of commonly used very broken tactics *)
 
@@ -124,6 +136,11 @@ Module _test.
     Context (True : Prop) (I : True).
     Context (and : forall P Q : Prop, Prop) (conj : forall (P Q : Prop) (_:P) (_:Q), and P Q).
     Local Arguments conj {_ _} _ _.
+
+    Ltac constr_I := constr:(I).
+    Goal True.
+      texact constr_I.
+    Qed.
 
     Goal True.
       pose proof (fun (a b c:and True True) => I) as pf.
@@ -170,12 +187,12 @@ Module _test.
     Goal True.
       assert_succeeds (evarconv Set Set).
       assert_succeeds (evarconv Type Type).
-      assert_succeeds (let x := open_constr:(_) in evarconv Set x).
-      assert_succeeds (let x := open_constr:(_) in evarconv x Set).
-      assert_succeeds (let x := open_constr:(_) in evarconv I x).
-      assert_succeeds (let x := open_constr:(_) in evarconv x I).
+      assert_succeeds (idtac; let x := open_constr:(_) in evarconv Set x).
+      assert_succeeds (idtac; let x := open_constr:(_) in evarconv x Set).
+      assert_succeeds (idtac; let x := open_constr:(_) in evarconv I x).
+      assert_succeeds (idtac; let x := open_constr:(_) in evarconv x I).
       exact I.
-    Abort.
+    Qed.
 
     Goal True.
       let x := open_constr:(_) in
@@ -221,45 +238,18 @@ Module _test.
       exact I.
     Qed.
 
-      (*
-Ltac _syntactic_eapply_openconstr_of_type pf P :=
-  let G := getgoal Set in
-  first
-    [ syntactic_unify P G; change P; exact pf
-    | lazymatch P with forall __, ?C => _syntactic_eapply_openconstr_of_type open_constr:(pf _) C end ]. (* TODO: test usage that creates evars *)
-Ltac syntactic_eapply pf :=
-  unshelve _syntactic_eapply_openconstr_of_type pf constr:(typeof! pf).
-*)
-
     Goal forall P eq (H: forall (x:True) (Hx:eq x x), P) (HH:eq I I), P.
-
       intros.
-      assert_succeeds (refine (H _ _)).
-
-      let pf := H in
-      let P := constr:(typeof! pf) in
-      let G := getgoal Set in
-      idtac pf; idtac P;
-        lazymatch P with
-          forall __, ?C =>
-          let pf := open_constr:(pf _) in
-          let P := C in
-          idtac; idtac pf; idtac P;
-
-        lazymatch P with (* cannot match on const_under_binders *)
-          forall __, ?C =>
-          let pf := open_constr:(pf _) in
-          let P := C in
-          idtac; idtac pf; idtac C
-        end
-        end.
-
-            
-            
-          _syntactic_eapply_openconstr_of_type open_constr:(pf _) C end.
-
+      assert_fails (syntactic_apply H).
       syntactic_eapply H.
-      syntactic_eapply HH.
+      assert_fails (syntactic_apply H).
+      syntactic_apply HH.
+    Qed.
+
+    Goal forall P eq (H: forall P (Hx:eq I I), P) (HH:eq I I), P.
+      intros.
+      syntactic_apply H.
+      syntactic_apply HH.
     Qed.
   End WithAnd.
 End _test.
