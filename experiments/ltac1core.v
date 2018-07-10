@@ -19,7 +19,7 @@ Ltac typeof x :=
   end.
 Global Notation "'typeof!' x" := (ltac:(texact (typeof x))) (only parsing, at level 10).
 
-Global Notation "'subst!' y 'for' x 'in' f" := (match y with x => f end) (at level 10).
+Global Notation "'subst!' y 'for' x 'in' f" := (match y with x => f end) (at level 10, f at level 200).
 
 Ltac beta1 x :=
   lazymatch x with
