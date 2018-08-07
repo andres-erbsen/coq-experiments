@@ -200,3 +200,5 @@ Module UsingNTypes.
         assumption. }
       { exact (Pprecons fst0 fst1 (_,(snd0, c)) (IHf snd0 c P ltac:(assumption) ltac:(assumption))). }
     Defined.
+  End prevec.
+End UsingNTypes.
