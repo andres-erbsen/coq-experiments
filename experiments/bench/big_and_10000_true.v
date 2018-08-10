@@ -30,9 +30,13 @@ Goal fnd 10000.
   let pf := constr:(big_conj ls) in
   let T := type of pf in
   let T := eval cbv [typeof_big_conj big_and] in T in
-  pose proof (pf : T) as H; apply H; exact I.
+  refine (let H : T := pf in _).
+  Time clearbody H.
+  Time apply H; exact I.
 Time Qed.
 (*
-Finished transaction in 21.647 secs (21.58u,0.006s) (successful)
-Finished transaction in 3.378 secs (3.364u,0.009s) (successful)
+Finished transaction in 3.028 secs (2.946u,0.067s) (successful)
+Finished transaction in 0.001 secs (0.001u,0.s) (successful)
+Finished transaction in 21.168 secs (21.078u,0.017s) (successful)
+Finished transaction in 3.405 secs (3.397u,0.s) (successful)
 *)
